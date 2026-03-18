@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Albert S. Leung — Clip Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+@font-face { font-family:'Effra'; src:url('assets/fonts/Effra_Bold.ttf') format('truetype'); font-weight:700; }
+@font-face { font-family:'Effra'; src:url('assets/fonts/Effra_Light.ttf') format('truetype'); font-weight:300; }
+
+:root {
+  --autumn: #E36519;
+  --gold:   #C5A958;
+  --char:   #191919;
+  --cream:  #FAF6EE;
+  --panel:  #141210;
+  --card:   #1e1b17;
+  --card2:  #252118;
+  --border: rgba(197,169,88,0.22);
+  --text:   #f0ece4;
+  --muted:  rgba(240,236,228,0.55);
+}
+
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  font-family:'Effra', Georgia, serif;
+  background:var(--char);
+  color:var(--text);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Layout ── */
+.shell { display:flex; min-height:100vh; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width:224px; flex-shrink:0;
+  background:var(--panel);
+  border-right:1px solid var(--border);
+  display:flex; flex-direction:column;
+  padding:22px 0 20px;
+  position:sticky; top:0; height:100vh; overflow-y:auto;
+}
+.logo { padding:0 18px 20px; border-bottom:1px solid var(--border); margin-bottom:10px; }
+.logo-eye { font-size:9px; font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--gold); margin-bottom:4px; }
+.logo-name { font-size:14px; font-weight:700; line-height:1.3; color:#fff; }
+
+.nav-sec { font-size:9px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:rgba(197,169,88,.32); padding:14px 18px 5px; }
+.nav-item {
+  display:flex; align-items:center; gap:10px;
+  padding:11px 18px; font-size:13.5px; font-weight:300; letter-spacing:.03em;
+  color:var(--muted); cursor:pointer;
+  border-left:2px solid transparent;
+  transition:color .2s, background .2s, border-color .2s;
+  user-select:none;
+}
+.nav-item svg { width:16px; height:16px; flex-shrink:0; }
+.nav-item:hover { color:var(--text); background:rgba(227,101,25,.06); }
+.nav-item.active { color:#fff; background:rgba(227,101,25,.1); border-left-color:var(--autumn); }
+
+.sidebar-spacer { flex:1; }
+.sidebar-foot { padding:14px 18px 0; border-top:1px solid var(--border); font-size:10px; font-weight:300; color:rgba(197,169,88,.35); letter-spacing:.06em; line-height:1.9; }
+
+/* ── Main ── */
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.topbar {
+  padding:18px 30px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:14px; flex-shrink:0;
+  background:rgba(20,18,16,.85); backdrop-filter:blur(10px);
+  position:sticky; top:0; z-index:10;
+}
+.topbar-info { flex:1; }
+.topbar-title { font-weight:700; font-size:18px; letter-spacing:.02em; color:#fff; }
+.topbar-sub { font-weight:300; font-size:12px; color:var(--muted); letter-spacing:.05em; margin-top:2px; }
+.vpill { background:rgba(227,101,25,.14); border:1px solid rgba(227,101,25,.3); border-radius:20px; color:var(--autumn); font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:4px 12px; }
+
+.content { flex:1; overflow-y:auto; padding:34px 30px 70px; }
+
+/* ── Tab panels ── */
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+/* ══ WIZARD ══════════════════════════════════════════════ */
+.wizard { max-width:660px; margin:0 auto; }
+
+/* Progress track */
+.wiz-prog { display:flex; margin-bottom:30px; }
+.wiz-node {
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;
+  position:relative;
+}
+.wiz-node::after {
+  content:''; position:absolute;
+  top:15px; left:calc(50% + 17px); right:calc(-50% + 17px);
+  height:2px; background:rgba(197,169,88,.18);
+}
+.wiz-node:last-child::after { display:none; }
+.wiz-dot {
+  width:30px; height:30px; border-radius:50%;
+  border:2px solid rgba(197,169,88,.22); background:var(--card);
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:700; color:var(--muted);
+  position:relative; z-index:1; transition:all .3s;
+}
+.wiz-node.done   .wiz-dot { border-color:var(--gold); background:rgba(197,169,88,.12); color:var(--gold); }
+.wiz-node.active .wiz-dot { border-color:var(--autumn); background:rgba(227,101,25,.16); color:var(--autumn); }
+.wiz-lbl { font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); text-align:center; white-space:nowrap; transition:color .3s; }
+.wiz-node.active .wiz-lbl { color:#fff; }
+.wiz-node.done   .wiz-lbl { color:var(--gold); }
+
+/* Step card */
+.wiz-card {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:16px; padding:28px 30px;
+  animation:stepIn .32s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes stepIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+.step-head { display:flex; align-items:flex-start; gap:14px; margin-bottom:22px; }
+.step-num {
+  width:36px; height:36px; border-radius:50%; flex-shrink:0;
+  background:rgba(227,101,25,.16); border:1.5px solid var(--autumn);
+  color:var(--autumn); font-size:15px; font-weight:700;
+  display:flex; align-items:center; justify-content:center;
+}
+.step-title { font-weight:700; font-size:17px; letter-spacing:.02em; color:#fff; }
+.step-hint { font-weight:300; font-size:13.5px; color:var(--muted); margin-top:4px; line-height:1.6; }
+
+/* Fields */
+.field { margin-bottom:18px; }
+.field label {
+  display:block; font-size:10px; font-weight:700;
+  letter-spacing:.15em; text-transform:uppercase;
+  color:var(--gold); margin-bottom:8px;
+}
+.field label small { font-weight:300; text-transform:none; letter-spacing:0; font-size:11px; color:var(--muted); }
+input[type=text],input[type=url],select,textarea {
+  width:100%; background:rgba(255,255,255,.06);
+  border:1px solid rgba(197,169,88,.28);
+  border-radius:10px; color:#fff;
+  font-family:'Effra',sans-serif; font-size:15px; font-weight:300;
+  padding:13px 15px; outline:none;
+  transition:border-color .2s, box-shadow .2s; letter-spacing:.02em;
+}
+input::placeholder, textarea::placeholder { color:rgba(240,236,228,.3); }
+input:focus,select:focus,textarea:focus {
+  border-color:rgba(227,101,25,.6); box-shadow:0 0 0 3px rgba(227,101,25,.08);
+}
+select option { background:#1e1b17; }
+textarea { resize:vertical; min-height:90px; line-height:1.7; }
+.field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+/* Type cards */
+.type-row { display:flex; gap:12px; }
+.type-card {
+  flex:1; border:1.5px solid rgba(197,169,88,.22); border-radius:12px;
+  padding:16px 14px; cursor:pointer; text-align:center;
+  transition:border-color .2s, background .2s; user-select:none;
+}
+.type-card:hover { border-color:rgba(227,101,25,.4); background:rgba(227,101,25,.04); }
+.type-card.sel { border-color:var(--autumn); background:rgba(227,101,25,.1); }
+.type-card input { display:none; }
+.type-emoji { font-size:26px; margin-bottom:8px; }
+.type-lbl { font-size:13px; font-weight:700; color:#fff; }
+.type-desc { font-size:11.5px; font-weight:300; color:var(--muted); margin-top:4px; line-height:1.4; }
+
+/* Drop zone */
+.drop-zone {
+  border:1.5px dashed rgba(197,169,88,.3); border-radius:12px;
+  padding:28px 20px; text-align:center; cursor:pointer;
+  transition:border-color .2s, background .2s;
+}
+.drop-zone:hover,.drop-zone.over { border-color:var(--autumn); background:rgba(227,101,25,.04); }
+.drop-zone input[type=file] { display:none; }
+.drop-emoji { font-size:30px; margin-bottom:8px; }
+.drop-txt { font-size:14px; font-weight:300; color:var(--muted); line-height:1.65; }
+.drop-txt strong { color:var(--autumn); font-weight:700; }
+
+.file-chip {
+  margin-top:12px; padding:12px 16px; border-radius:8px;
+  background:rgba(197,169,88,.08); border:1px solid rgba(197,169,88,.2);
+  display:none; align-items:center; gap:12px;
+}
+.file-chip.show { display:flex; }
+.chip-name { font-size:13.5px; font-weight:700; color:#fff; }
+.chip-size { font-size:11.5px; font-weight:300; color:var(--muted); margin-top:2px; }
+
+/* Image thumb */
+.img-wrap { margin-top:12px; border-radius:10px; overflow:hidden; border:1px solid var(--border); display:none; position:relative; }
+.img-wrap.show { display:block; }
+.img-wrap img { display:block; width:100%; max-height:200px; object-fit:cover; }
+.img-info { position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(14,12,10,.9)); padding:18px 14px 10px; font-size:11.5px; font-weight:300; color:rgba(240,236,228,.75); letter-spacing:.05em; }
+
+/* AI suggestion box */
+.ai-box {
+  background:rgba(227,101,25,.07); border:1px solid rgba(227,101,25,.22);
+  border-radius:12px; padding:18px 20px; margin-top:12px; display:none;
+}
+.ai-box.show { display:block; }
+.ai-lbl { font-size:9px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--autumn); margin-bottom:10px; }
+.ai-txt { font-size:14px; font-weight:300; color:rgba(240,236,228,.9); line-height:1.75; }
+.ai-spin { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:13.5px; }
+
+/* URL row */
+.url-row { display:flex; gap:8px; }
+.url-row input { flex:1; }
+.btn-sm {
+  background:rgba(197,169,88,.12); border:1px solid rgba(197,169,88,.28);
+  border-radius:8px; color:var(--gold);
+  font-family:'Effra',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase;
+  padding:0 14px; cursor:pointer; white-space:nowrap;
+  transition:background .2s;
+}
+.btn-sm:hover { background:rgba(197,169,88,.22); }
+
+/* Code block */
+.code-blk {
+  background:rgba(0,0,0,.5); border:1px solid rgba(197,169,88,.12);
+  border-radius:10px; padding:16px 18px;
+  font-size:11.5px; line-height:1.75; color:rgba(240,236,228,.82);
+  overflow-x:auto; white-space:pre-wrap;
+  font-family:'Courier New',monospace; max-height:220px; overflow-y:auto;
+}
+
+/* Instruction box */
+.instr {
+  background:rgba(197,169,88,.07); border:1px solid rgba(197,169,88,.18);
+  border-radius:10px; padding:16px 18px; margin-bottom:18px;
+}
+.instr-lbl { font-size:9px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--gold); margin-bottom:9px; }
+.instr p,.instr li { font-size:13.5px; font-weight:300; line-height:1.8; color:rgba(240,236,228,.82); }
+.instr ul,.instr ol { padding-left:16px; }
+.instr li { margin-bottom:3px; }
+.instr code { background:rgba(227,101,25,.14); border-radius:4px; padding:1px 6px; font-size:12px; color:var(--autumn); font-family:'Courier New',monospace; }
+.instr strong { color:#fff; }
+
+/* Numbered steps */
+.steps { padding:0; list-style:none; display:flex; flex-direction:column; gap:14px; }
+.steps li { display:flex; gap:14px; align-items:flex-start; }
+.s-num {
+  width:28px; height:28px; border-radius:50%; flex-shrink:0;
+  background:rgba(227,101,25,.15); border:1.5px solid var(--autumn);
+  color:var(--autumn); font-size:12px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; margin-top:1px;
+}
+.s-txt { font-size:14px; font-weight:300; line-height:1.75; color:rgba(240,236,228,.85); padding-top:3px; }
+.s-txt strong { color:#fff; }
+.s-txt code { color:var(--autumn); font-family:'Courier New',monospace; font-size:12.5px; }
+
+/* Wizard nav */
+.wiz-nav { display:flex; justify-content:space-between; align-items:center; margin-top:26px; padding-top:20px; border-top:1px solid rgba(197,169,88,.14); }
+
+/* ── Buttons ── */
+.btn-primary {
+  background:var(--autumn); border:none; border-radius:10px; color:#fff;
+  font-family:'Effra',sans-serif; font-size:14px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; padding:13px 24px;
+  cursor:pointer; transition:background .2s,transform .15s,box-shadow .2s;
+  box-shadow:0 4px 18px rgba(227,101,25,.28);
+  display:inline-flex; align-items:center; gap:8px;
+}
+.btn-primary:hover { background:#f0721f; box-shadow:0 6px 26px rgba(227,101,25,.42); }
+.btn-primary:active { transform:scale(.96); }
+.btn-primary:disabled { background:rgba(227,101,25,.3); box-shadow:none; cursor:not-allowed; }
+
+.btn-secondary {
+  background:rgba(197,169,88,.1); border:1px solid rgba(197,169,88,.28);
+  border-radius:10px; color:var(--gold);
+  font-family:'Effra',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; padding:12px 20px;
+  cursor:pointer; transition:background .2s,transform .15s;
+  display:inline-flex; align-items:center; gap:8px;
+}
+.btn-secondary:hover { background:rgba(197,169,88,.18); }
+.btn-secondary:active { transform:scale(.96); }
+
+.btn-ghost {
+  background:none; border:none; color:var(--muted);
+  font-family:'Effra',sans-serif; font-size:13px; font-weight:300;
+  letter-spacing:.04em; padding:10px 12px; cursor:pointer;
+  transition:color .2s; display:inline-flex; align-items:center; gap:6px;
+}
+.btn-ghost:hover { color:#fff; }
+.btn-ghost svg { width:14px; height:14px; }
+
+/* QR preview */
+.qr-box {
+  background:var(--card2); border:1px solid var(--border);
+  border-radius:14px; padding:26px;
+  display:flex; flex-direction:column; align-items:center;
+  gap:14px; min-height:230px; justify-content:center;
+}
+.qr-ph { font-size:13px; font-weight:300; color:rgba(197,169,88,.3); text-align:center; letter-spacing:.05em; line-height:1.7; }
+.qr-cap { font-size:10px; font-weight:300; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); text-align:center; }
+
+/* Play button demo */
+.pulse-demo { display:inline-flex; align-items:center; gap:16px; cursor:pointer; }
+.pulse-wrap { position:relative; width:68px; height:68px; flex-shrink:0; }
+.pr1 { position:absolute; inset:-8px; border-radius:50%; border:1.8px solid rgba(227,101,25,.55); animation:pr 2.4s cubic-bezier(.4,0,.6,1) infinite; pointer-events:none; }
+.pr2 { position:absolute; inset:-18px; border-radius:50%; border:1.5px solid rgba(227,101,25,.28); animation:pr 2.4s cubic-bezier(.4,0,.6,1) infinite; animation-delay:.85s; pointer-events:none; }
+@keyframes pr { 0%{opacity:1;transform:scale(1)} 65%{opacity:0;transform:scale(1.55)} 100%{opacity:0;transform:scale(1.55)} }
+.pulse-inner {
+  position:absolute; inset:0; background:var(--autumn); border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 5px 24px rgba(227,101,25,.45);
+  transition:background .2s,transform .15s;
+}
+.pulse-inner:hover { background:#f0721f; transform:scale(1.05); }
+.pulse-inner svg { width:26px; height:26px; fill:#fff; margin-left:3px; }
+.pulse-eye { font-size:10px; font-weight:700; letter-spacing:.15em; text-transform:uppercase; color:var(--gold); }
+.pulse-tit { font-size:16px; font-weight:300; color:#fff; margin-top:3px; line-height:1.2; }
+
+.demo-dark  { background:#191919; border-radius:14px; padding:26px 22px; margin-bottom:14px; }
+.demo-light { background:#FAF6EE; border-radius:14px; padding:26px 22px; margin-bottom:20px; }
+.demo-light .pulse-eye { color:#C5A958; }
+.demo-light .pulse-tit { color:#191919; }
+.demo-lbl { font-size:9px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+
+/* Registry table */
+.reg-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+.reg-table th { text-align:left; padding:9px 12px; font-size:9.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); border-bottom:1px solid var(--border); }
+.reg-table td { padding:13px 12px; border-bottom:1px solid rgba(197,169,88,.07); font-weight:300; vertical-align:middle; color:rgba(240,236,228,.85); }
+.reg-table tr:hover td { background:rgba(255,255,255,.02); }
+.badge { background:rgba(227,101,25,.12); border:1px solid rgba(227,101,25,.25); border-radius:5px; color:var(--autumn); font-size:11px; font-weight:700; letter-spacing:.07em; padding:3px 9px; display:inline-block; }
+.st-live  { color:#6bcf6b; font-size:12px; }
+.st-draft { color:var(--muted); font-size:12px; }
+
+/* Success */
+.success { text-align:center; padding:36px 16px; }
+.suc-icon { font-size:52px; margin-bottom:14px; }
+.suc-title { font-weight:700; font-size:22px; color:#fff; margin-bottom:10px; }
+.suc-desc { font-weight:300; font-size:14px; color:var(--muted); line-height:1.75; max-width:420px; margin:0 auto 26px; }
+.suc-btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+
+/* Spinner */
+.spin { display:inline-block; width:15px; height:15px; border:2px solid rgba(240,236,228,.2); border-top-color:#fff; border-radius:50%; animation:rot .7s linear infinite; vertical-align:middle; }
+@keyframes rot { to{transform:rotate(360deg)} }
+
+/* Toast */
+.toast {
+  position:fixed; bottom:22px; left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:#111; border:1px solid var(--gold);
+  color:#fff; font-family:'Effra',sans-serif;
+  font-size:13px; font-weight:300; padding:10px 22px;
+  border-radius:30px; opacity:0;
+  transition:transform .3s,opacity .3s;
+  z-index:999; pointer-events:none; white-space:nowrap;
+}
+.toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+
+@media(max-width:768px){
+  .sidebar{display:none;}
+  .content{padding:22px 16px 50px;}
+  .wiz-card{padding:20px 16px;}
+  .topbar{padding:14px 18px;}
+  .field-row{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-eye">Clip Manager</div>
+    <div class="logo-name">Albert S. Leung<br>Art Book</div>
+  </div>
+  <div class="nav-sec">Wizards</div>
+  <div class="nav-item active" data-tab="add" onclick="switchTab(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    Add a Clip
+  </div>
+  <div class="nav-item" data-tab="qr" onclick="switchTab(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    Create QR Code
+  </div>
+  <div class="nav-item" data-tab="pb" onclick="switchTab(this)">
+    <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+    Get Play Button
+  </div>
+  <div class="nav-sec">Reference</div>
+  <div class="nav-item" data-tab="reg" onclick="switchTab(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    Clip Registry
+  </div>
+  <div class="nav-item" data-tab="setup" onclick="switchTab(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+    Setup Guide
+  </div>
+  <div class="sidebar-spacer"></div>
+  <div class="sidebar-foot">The Art of Albert S. Leung<br>© 2025 — A Living Legacy</div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+<div class="topbar">
+  <div class="topbar-info">
+    <div class="topbar-title" id="tabTitle">Add a Clip</div>
+    <div class="topbar-sub" id="tabSub">Step-by-step — about 3 minutes per clip</div>
+  </div>
+  <div class="vpill">v3.0</div>
+</div>
+
+<div class="content">
+
+<!-- ══ ADD CLIP ══════════════════════════════════════════ -->
+<div class="tab-panel active" id="tab-add">
+<div class="wizard">
+  <div class="wiz-prog" id="addProg">
+    <div class="wiz-node active" data-s="1"><div class="wiz-dot">1</div><div class="wiz-lbl">Title</div></div>
+    <div class="wiz-node" data-s="2"><div class="wiz-dot">2</div><div class="wiz-lbl">Upload</div></div>
+    <div class="wiz-node" data-s="3"><div class="wiz-dot">3</div><div class="wiz-lbl">Link URL</div></div>
+    <div class="wiz-node" data-s="4"><div class="wiz-dot">4</div><div class="wiz-lbl">Image</div></div>
+    <div class="wiz-node" data-s="5"><div class="wiz-dot">5</div><div class="wiz-lbl">Description</div></div>
+    <div class="wiz-node" data-s="6"><div class="wiz-dot">6</div><div class="wiz-lbl">Add to Player</div></div>
+  </div>
+
+  <!-- Step 1: Title -->
+  <div class="wiz-card" id="addS1">
+    <div class="step-head"><div class="step-num">1</div><div>
+      <div class="step-title">Name this clip</div>
+      <div class="step-hint">Give it a title and tell us whether it's audio or video. Everything else builds from this.</div>
+    </div></div>
+    <div class="field">
+      <label>Clip title <small>— What listeners see at the top of the player</small></label>
+      <input type="text" id="a-title" placeholder="e.g. Still Life II" oninput="autoSlug()">
+    </div>
+    <div class="field">
+      <label>Clip ID <small>— Auto-generated. Used in the URL and QR code. No spaces.</small></label>
+      <input type="text" id="a-id" placeholder="still-life-ii">
+    </div>
+    <div class="field">
+      <label>Media type</label>
+      <div class="type-row">
+        <label class="type-card sel" onclick="setType('audio',this)">
+          <input type="radio" name="a-type" value="audio" checked>
+          <div class="type-emoji">🎙</div>
+          <div class="type-lbl">Audio</div>
+          <div class="type-desc">Voice note or MP3<br>Up to 10 minutes</div>
+        </label>
+        <label class="type-card" onclick="setType('video',this)">
+          <input type="radio" name="a-type" value="video">
+          <div class="type-emoji">🎬</div>
+          <div class="type-lbl">Video</div>
+          <div class="type-desc">iPhone camera<br>MP4 file</div>
+        </label>
+      </div>
+    </div>
+    <div class="field">
+      <label>Medium / subtitle <small>— Optional. E.g. "Oil on canvas — Albert in conversation"</small></label>
+      <input type="text" id="a-medium" placeholder="Oil on canvas — Albert S. Leung in conversation">
+    </div>
+    <div class="wiz-nav">
+      <div></div>
+      <button class="btn-primary" onclick="addTo(2)">Next — Upload your file <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Step 2: Upload instructions -->
+  <div class="wiz-card" id="addS2" style="display:none">
+    <div class="step-head"><div class="step-num">2</div><div>
+      <div class="step-title">Upload your file to GitHub</div>
+      <div class="step-hint">Follow these steps exactly — then come back here to paste the URL.</div>
+    </div></div>
+
+    <div class="instr">
+      <div class="instr-lbl">Before you start — file naming</div>
+      <p>Rename your audio file so it has <strong>no spaces</strong> before uploading. Use hyphens instead:</p>
+      <p style="margin-top:10px;font-family:'Courier New',monospace;font-size:13px;color:var(--autumn);background:rgba(227,101,25,.08);padding:10px 14px;border-radius:8px;">
+        ✗ &nbsp;2026 - 01 - 10 - still life II.mp3<br>
+        ✓ &nbsp;<span id="suggestFilename">still-life-ii.mp3</span>
+      </p>
+    </div>
+
+    <ol class="steps">
+      <li><div class="s-num">1</div><div class="s-txt">Go to <strong>github.com/client-hosting/albert-s-leung</strong> in a new browser tab — keep this wizard open</div></li>
+      <li><div class="s-num">2</div><div class="s-txt">Click the <strong>clips</strong> folder, then click <strong>Add file → Upload files</strong></div></li>
+      <li><div class="s-num">3</div><div class="s-txt">Drag your renamed audio file into the upload area</div></li>
+      <li><div class="s-num">4</div><div class="s-txt">Scroll down and click <strong>Commit changes</strong></div></li>
+      <li><div class="s-num">5</div><div class="s-txt">Wait <strong>2–3 minutes</strong> for GitHub to publish the file, then come back here and click Next</div></li>
+    </ol>
+
+    <div class="field" style="margin-top:20px">
+      <label>What is the exact filename you uploaded? <small>— Include the extension, e.g. still-life-ii.mp3</small></label>
+      <input type="text" id="a-filename" placeholder="still-life-ii.mp3" oninput="buildSrcUrl()">
+    </div>
+
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="addTo(1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <button class="btn-primary" onclick="addTo(3)">Next — Confirm the URL <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Step 3: Confirm URL -->
+  <div class="wiz-card" id="addS3" style="display:none">
+    <div class="step-head"><div class="step-num">3</div><div>
+      <div class="step-title">Confirm the media URL</div>
+      <div class="step-hint">We've built the URL from your filename. Test it in your browser first — if the audio plays or downloads, it's working.</div>
+    </div></div>
+
+    <div class="field">
+      <label>Media URL <small>— This is what the player uses to find your audio</small></label>
+      <div class="url-row">
+        <input type="url" id="a-src" placeholder="https://client-hosting.github.io/albert-s-leung/clips/still-life-ii.mp3">
+        <button class="btn-sm" onclick="testSrc()">Test URL</button>
+      </div>
+    </div>
+
+    <div class="instr">
+      <div class="instr-lbl">How to test</div>
+      <ol class="steps">
+        <li><div class="s-num">1</div><div class="s-txt">Click <strong>Test URL</strong> above — it will open the URL in a new tab</div></li>
+        <li><div class="s-num">2</div><div class="s-txt">If the audio <strong>plays or downloads</strong> — it's working. Come back and click Next.</div></li>
+        <li><div class="s-num">3</div><div class="s-txt">If you see a <strong>404 error</strong> — wait 2 more minutes and try again. GitHub Pages can be slow to publish.</div></li>
+        <li><div class="s-num">4</div><div class="s-txt">If it still fails after 5 minutes — check that the filename in GitHub matches exactly what's in the URL above</div></li>
+      </ol>
+    </div>
+
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="addTo(2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-ghost" onclick="addTo(4)">Skip image →</button>
+        <button class="btn-primary" onclick="addTo(4)">Next — Add artwork image <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Image -->
+  <div class="wiz-card" id="addS4" style="display:none">
+    <div class="step-head"><div class="step-num">4</div><div>
+      <div class="step-title">Add the artwork image</div>
+      <div class="step-hint">Drop your print-quality image here. We'll resize it for the web automatically — no need to do anything to the file first.</div>
+    </div></div>
+
+    <div class="instr">
+      <div class="instr-lbl">What we do for you</div>
+      <p>Drop in any size image — even your full print-resolution file. We resize it to <strong>1200 × 900 px</strong> and give you a web-ready version to download and upload to GitHub. Your original file is never changed.</p>
+    </div>
+
+    <div class="field">
+      <div class="drop-zone" id="imgDrop" onclick="document.getElementById('imgFile').click()" ondragover="dov(event,this)" ondragleave="dol(this)" ondrop="doDrop(event,'img')">
+        <input type="file" id="imgFile" accept="image/*" onchange="onImgFile(this)">
+        <div class="drop-emoji">🖼</div>
+        <div class="drop-txt"><strong>Click to choose the artwork image</strong><br>or drag and drop here<br><small style="color:rgba(240,236,228,.28)">JPEG, PNG, TIFF — any resolution</small></div>
+      </div>
+      <div class="img-wrap" id="imgWrap"><img id="imgThumb" src="" alt=""><div class="img-info" id="imgInfo"></div></div>
+    </div>
+
+    <div id="imgReady" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="btn-secondary" onclick="dlWebImg()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download web-ready image
+        </button>
+        <span style="font-size:12px;font-weight:300;color:var(--muted)">Then upload this to your GitHub <code style="color:var(--autumn);font-family:'Courier New';font-size:11px">images/</code> folder</span>
+      </div>
+
+      <ol class="steps" style="margin-bottom:18px">
+        <li><div class="s-num">1</div><div class="s-txt">Click <strong>Download web-ready image</strong> above</div></li>
+        <li><div class="s-num">2</div><div class="s-txt">In GitHub, open the <strong>images</strong> folder → <strong>Add file → Upload files</strong></div></li>
+        <li><div class="s-num">3</div><div class="s-txt">Upload the downloaded image → <strong>Commit changes</strong></div></li>
+        <li><div class="s-num">4</div><div class="s-txt">Wait 2 minutes, then paste the image URL below</div></li>
+      </ol>
+
+      <div class="field">
+        <label>Image URL <small>— Paste after uploading to GitHub</small></label>
+        <div class="url-row">
+          <input type="url" id="a-thumb" placeholder="https://client-hosting.github.io/albert-s-leung/images/still-life-ii.jpg">
+          <button class="btn-sm" onclick="testThumb()">Test</button>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="resizeCanvas" style="display:none"></canvas>
+
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="addTo(3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-ghost" onclick="addTo(5)">Skip →</button>
+        <button class="btn-primary" onclick="addTo(5)">Next — Write description <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 5: Description -->
+  <div class="wiz-card" id="addS5" style="display:none">
+    <div class="step-head"><div class="step-num">5</div><div>
+      <div class="step-title">Write a description</div>
+      <div class="step-hint">This appears below the player. We can suggest a draft — just edit it to match what Albert actually says in the recording.</div>
+    </div></div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn-secondary" onclick="aiSuggest()" id="btnSuggest">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        Suggest a draft
+      </button>
+      <span style="font-size:12.5px;font-weight:300;color:var(--muted)">AI writes a starting point in the voice of the book</span>
+    </div>
+
+    <div class="ai-box" id="aiBox">
+      <div class="ai-lbl">Suggested description</div>
+      <div class="ai-txt" id="aiTxt"></div>
+    </div>
+
+    <div class="field" style="margin-top:14px">
+      <label>Description <small>— Shown below the player to the listener</small></label>
+      <textarea id="a-context" rows="5" placeholder="Albert describes the process of painting this beautiful still life — a rare oil on canvas work where he spent as much time on the gleam of the kettle as on the composition as a whole."></textarea>
+    </div>
+
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="addTo(4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <button class="btn-primary" onclick="addTo(6)">Next — Add to player <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+    </div>
+  </div>
+
+  <!-- Step 6: Add to player -->
+  <div class="wiz-card" id="addS6" style="display:none">
+    <div class="step-head"><div class="step-num">6</div><div>
+      <div class="step-title">Add this clip to the player</div>
+      <div class="step-hint">Copy the code below, then follow these steps to paste it into the player file on GitHub.</div>
+    </div></div>
+
+    <div class="code-blk" id="reviewCode" style="margin-bottom:14px"></div>
+    <button class="btn-primary" onclick="copyReview()" style="margin-bottom:24px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Copy code
+    </button>
+
+    <ol class="steps" style="margin-bottom:22px">
+      <li><div class="s-num">1</div><div class="s-txt">Click <strong>Copy code</strong> above</div></li>
+      <li><div class="s-num">2</div><div class="s-txt">Go to GitHub → your repository → click on <strong>player.html</strong></div></li>
+      <li><div class="s-num">3</div><div class="s-txt">Click the <strong>pencil icon</strong> (Edit this file) in the top right</div></li>
+      <li><div class="s-num">4</div><div class="s-txt">Press <strong>⌘F</strong> (Mac) or <strong>Ctrl+F</strong> (Windows) and search for: <code>ADD NEW CLIPS BELOW THIS LINE</code></div></li>
+      <li><div class="s-num">5</div><div class="s-txt">Click just <strong>after</strong> that line, press Enter, and paste with <strong>⌘V</strong></div></li>
+      <li><div class="s-num">6</div><div class="s-txt">Scroll down and click <strong>Commit changes</strong></div></li>
+      <li><div class="s-num">7</div><div class="s-txt">Wait 1 minute, then test: <span id="testLink" style="color:var(--autumn);font-family:'Courier New';font-size:12px;word-break:break-all"></span></div></li>
+    </ol>
+
+    <div class="instr">
+      <div class="instr-lbl">Important — avoid this common mistake</div>
+      <p>Make sure there is <strong>no semicolon</strong> at the start of your pasted code. The line should begin with two spaces and a quote mark, like this:</p>
+      <p style="margin-top:10px;font-family:'Courier New',monospace;font-size:12.5px;color:var(--autumn);background:rgba(227,101,25,.08);padding:10px 14px;border-radius:8px;">
+        ✗ &nbsp;;&nbsp;&nbsp;"still-life-ii": {<br>
+        ✓ &nbsp;&nbsp;&nbsp;"still-life-ii": {
+      </p>
+    </div>
+
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="addTo(5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn-primary" onclick="addAnother()">＋ Add another clip</button>
+        <button class="btn-secondary" onclick="switchTabById('qr')">Create QR code →</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ QR CODE ══════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-qr">
+<div class="wizard">
+  <div class="wiz-prog" id="qrProg">
+    <div class="wiz-node active" data-s="1"><div class="wiz-dot">1</div><div class="wiz-lbl">Clip</div></div>
+    <div class="wiz-node" data-s="2"><div class="wiz-dot">2</div><div class="wiz-lbl">Style</div></div>
+    <div class="wiz-node" data-s="3"><div class="wiz-dot">3</div><div class="wiz-lbl">Download</div></div>
+  </div>
+
+  <div class="wiz-card" id="qrS1">
+    <div class="step-head"><div class="step-num">1</div><div>
+      <div class="step-title">Which clip is this QR code for?</div>
+      <div class="step-hint">Enter the Clip ID exactly as you set it up in the Add a Clip wizard.</div>
+    </div></div>
+    <div class="field">
+      <label>Clip ID</label>
+      <input type="text" id="q-id" placeholder="still-life-ii" oninput="qrBuild()">
+    </div>
+    <div class="field">
+      <label>Your site base URL <small>— Pre-filled from your settings</small></label>
+      <input type="url" id="q-base" placeholder="https://client-hosting.github.io/albert-s-leung" oninput="qrBuild()" value="">
+    </div>
+    <div class="field">
+      <label>Full URL encoded in the QR code</label>
+      <input type="text" id="q-url" readonly style="color:var(--muted);font-size:13px" value="Enter Clip ID and Base URL above">
+    </div>
+    <div class="wiz-nav">
+      <div></div>
+      <button class="btn-primary" onclick="qrTo(2)">Next — Choose colour <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+    </div>
+  </div>
+
+  <div class="wiz-card" id="qrS2" style="display:none">
+    <div class="step-head"><div class="step-num">2</div><div>
+      <div class="step-title">Choose the colour</div>
+      <div class="step-hint">Transparent background — drops straight into your InDesign layout.</div>
+    </div></div>
+    <div class="field-row" style="margin-bottom:20px">
+      <div class="field">
+        <label>Colour</label>
+        <select id="q-col" onchange="genQR()">
+          <option value="autumn" selected>Autumn Glory — #E36519 (recommended)</option>
+          <option value="gold">Pale Gold — #C5A958</option>
+          <option value="dark">Charcoal — #191919</option>
+          <option value="cream">Cream — #FAF6EE (on dark backgrounds)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Size</label>
+        <select id="q-sz" onchange="genQR()">
+          <option value="200">Small — 200 px</option>
+          <option value="280" selected>Medium — 280 px ✓</option>
+          <option value="400">Large — 400 px</option>
+        </select>
+      </div>
+    </div>
+    <div class="qr-box"><div id="qr-prev"><div class="qr-ph">Generating…</div></div><div class="qr-cap" id="qr-cap">Transparent background · Print-ready</div></div>
+    <div class="instr" style="margin-top:18px">
+      <div class="instr-lbl">Print specifications</div>
+      <ul>
+        <li>Minimum: <strong>1.5 × 1.5 cm</strong> · Recommended: <strong>2.5 × 2.5 cm</strong></li>
+        <li>Leave at least 4 mm of clear space all around</li>
+        <li>Test by scanning with your phone before sending to print</li>
+      </ul>
+    </div>
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="qrTo(1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <button class="btn-primary" onclick="qrTo(3)">Next — Download <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+    </div>
+  </div>
+
+  <div class="wiz-card" id="qrS3" style="display:none">
+    <div class="step-head"><div class="step-num">3</div><div>
+      <div class="step-title">Download your QR code</div>
+      <div class="step-hint">Transparent PNG, ready to place in InDesign.</div>
+    </div></div>
+    <div class="qr-box" style="margin-bottom:20px"><div id="qr-final"><div class="qr-ph">Preparing…</div></div><div class="qr-cap" id="qr-fcap"></div></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+      <button class="btn-primary" onclick="dlQR()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download PNG</button>
+      <button class="btn-secondary" onclick="qrTo(2)">Change colour</button>
+    </div>
+    <ol class="steps">
+      <li><div class="s-num">1</div><div class="s-txt">Place the PNG in InDesign at <strong>2.5 × 2.5 cm</strong> minimum</div></li>
+      <li><div class="s-num">2</div><div class="s-txt">No white box needed — place directly on a light page area</div></li>
+      <li><div class="s-num">3</div><div class="s-txt">Scan with your phone before sending to print to confirm it works</div></li>
+    </ol>
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="qrTo(2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn-primary" onclick="qrTo(1)">＋ Another QR code</button>
+        <button class="btn-secondary" onclick="switchTabById('pb')">Get play button →</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ PLAY BUTTON ════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-pb">
+<div class="wizard">
+  <div class="wiz-prog" id="pbProg">
+    <div class="wiz-node active" data-s="1"><div class="wiz-dot">1</div><div class="wiz-lbl">Clip</div></div>
+    <div class="wiz-node" data-s="2"><div class="wiz-dot">2</div><div class="wiz-lbl">Preview</div></div>
+    <div class="wiz-node" data-s="3"><div class="wiz-dot">3</div><div class="wiz-lbl">Copy code</div></div>
+  </div>
+
+  <div class="wiz-card" id="pbS1">
+    <div class="step-head"><div class="step-num">1</div><div>
+      <div class="step-title">Which clip is this play button for?</div>
+      <div class="step-hint">We'll link the button to the correct player page automatically.</div>
+    </div></div>
+    <div class="field"><label>Clip ID</label><input type="text" id="p-id" placeholder="still-life-ii" oninput="pbUpdate()"></div>
+    <div class="field"><label>Clip title <small>— Shown beside the pulsing button</small></label><input type="text" id="p-title" placeholder="Still Life II" oninput="pbUpdate()"></div>
+    <div class="field"><label>Base URL</label><input type="url" id="p-base" placeholder="https://client-hosting.github.io/albert-s-leung" oninput="pbUpdate()" value=""></div>
+    <div class="wiz-nav">
+      <div></div>
+      <button class="btn-primary" onclick="pbTo(2)">Next — Preview <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+    </div>
+  </div>
+
+  <div class="wiz-card" id="pbS2" style="display:none">
+    <div class="step-head"><div class="step-num">2</div><div>
+      <div class="step-title">Your play button, live</div>
+      <div class="step-hint">The two pulsing rings draw the eye and invite the listener in. Shown on dark and light page backgrounds.</div>
+    </div></div>
+    <div class="demo-lbl">On a dark / charcoal page</div>
+    <div class="demo-dark" style="margin-bottom:14px">
+      <div class="pulse-demo" onclick="pbOpen()">
+        <div class="pulse-wrap"><div class="pr1"></div><div class="pr2"></div><div class="pulse-inner"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        <div><div class="pulse-eye">Hear Albert speak</div><div class="pulse-tit" id="p-dark-t">Still Life II</div></div>
+      </div>
+    </div>
+    <div class="demo-lbl">On a cream / light page</div>
+    <div class="demo-light" style="margin-bottom:20px">
+      <div class="pulse-demo" onclick="pbOpen()">
+        <div class="pulse-wrap"><div class="pr1"></div><div class="pr2"></div><div class="pulse-inner"><svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg></div></div>
+        <div><div class="pulse-eye">Hear Albert speak</div><div class="pulse-tit" id="p-light-t" style="color:#191919">Still Life II</div></div>
+      </div>
+    </div>
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="pbTo(1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <button class="btn-primary" onclick="pbTo(3)">Next — Get the code <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+    </div>
+  </div>
+
+  <div class="wiz-card" id="pbS3" style="display:none">
+    <div class="step-head"><div class="step-num">3</div><div>
+      <div class="step-title">Copy your HTML code</div>
+      <div class="step-hint">Two versions — pick whichever matches your page colour.</div>
+    </div></div>
+    <div class="demo-lbl" style="margin-bottom:6px">For dark pages</div>
+    <div class="code-blk" id="p-dark-code" style="font-size:10.5px;margin-bottom:10px"></div>
+    <button class="btn-secondary" style="margin-bottom:22px" onclick="copyEl('p-dark-code')">Copy dark-page code</button>
+    <div class="demo-lbl" style="margin-bottom:6px">For cream / light pages</div>
+    <div class="code-blk" id="p-light-code" style="font-size:10.5px;margin-bottom:10px"></div>
+    <button class="btn-secondary" style="margin-bottom:22px" onclick="copyEl('p-light-code')">Copy light-page code</button>
+    <div class="instr">
+      <div class="instr-lbl">For static PDF digital editions</div>
+      <p>Take a screenshot of the play button preview in Step 2, insert it in your PDF layout, then use your PDF editor's <strong>Link / Button</strong> tool with this URL:</p>
+      <p style="margin-top:8px;color:var(--autumn);font-family:'Courier New';font-size:12px;word-break:break-all" id="p-url-ref"></p>
+    </div>
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="pbTo(2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <button class="btn-secondary" onclick="pbTo(1)">＋ Another clip</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══ CLIP REGISTRY ══════════════════════════════════════ -->
+<div class="tab-panel" id="tab-reg">
+<div class="wizard" style="max-width:860px">
+  <div class="wiz-card" id="regS1">
+    <div class="step-head"><div class="step-num" style="background:rgba(197,169,88,.12);border-color:var(--gold);color:var(--gold)">📋</div><div>
+      <div class="step-title">Clip Registry</div>
+      <div class="step-hint">These are the clips currently registered in the player. Add more using the Add a Clip wizard.</div>
+    </div></div>
+    <table class="reg-table">
+      <thead><tr><th>Clip ID</th><th>Title</th><th>Type</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge">intro</span></td><td>Welcome — Albert's Story</td><td>Audio</td><td><span class="st-draft">○ Needs media URL</span></td></tr>
+        <tr><td><span class="badge">great-blue-heron</span></td><td>Great Blue Heron</td><td>Audio</td><td><span class="st-draft">○ Needs media URL</span></td></tr>
+        <tr><td><span class="badge">monarch</span></td><td>Monarch on Sunflower</td><td>Audio</td><td><span class="st-draft">○ Needs media URL</span></td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:16px"><button class="btn-secondary" onclick="switchTabById('add')">＋ Add a new clip</button></div>
+  </div>
+</div>
+</div>
+
+<!-- ══ SETUP GUIDE ════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-setup">
+<div class="wizard">
+  <div class="wiz-prog" id="setupProg">
+    <div class="wiz-node active" data-s="1"><div class="wiz-dot">1</div><div class="wiz-lbl">GitHub</div></div>
+    <div class="wiz-node" data-s="2"><div class="wiz-dot">2</div><div class="wiz-lbl">Upload</div></div>
+    <div class="wiz-node" data-s="3"><div class="wiz-dot">3</div><div class="wiz-lbl">Save URL</div></div>
+    <div class="wiz-node" data-s="4"><div class="wiz-dot">4</div><div class="wiz-lbl">Ready!</div></div>
+  </div>
+
+  <div class="wiz-card" id="setupS1">
+    <div class="step-head"><div class="step-num">1</div><div>
+      <div class="step-title">Create your GitHub repository</div>
+      <div class="step-hint">GitHub hosts your player and clips online for free. Takes about 3 minutes.</div>
+    </div></div>
+    <ol class="steps">
+      <li><div class="s-num">1</div><div class="s-txt">Go to <strong>github.com</strong> → sign in or create a free account</div></li>
+      <li><div class="s-num">2</div><div class="s-txt">Click the <strong>＋</strong> (top right) → <strong>New repository</strong></div></li>
+      <li><div class="s-num">3</div><div class="s-txt">Name it <code>albert-s-leung</code> → set to <strong>Public</strong> → turn on <strong>Add README</strong> → click <strong>Create repository</strong></div></li>
+      <li><div class="s-num">4</div><div class="s-txt">Go to <strong>Settings → Pages → Source: Deploy from a branch → main → / (root)</strong> → Save</div></li>
+    </ol>
+    <div class="wiz-nav"><div></div><button class="btn-primary" onclick="setupTo(2)">Next — Upload files <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button></div>
+  </div>
+
+  <div class="wiz-card" id="setupS2" style="display:none">
+    <div class="step-head"><div class="step-num">2</div><div>
+      <div class="step-title">Upload the player files</div>
+      <div class="step-hint">Drag and drop — no coding required.</div>
+    </div></div>
+    <ol class="steps">
+      <li><div class="s-num">1</div><div class="s-txt">In your new repo → <strong>Add file → Upload files</strong></div></li>
+      <li><div class="s-num">2</div><div class="s-txt">Unzip the downloaded package. Drag all the contents into GitHub</div></li>
+      <li><div class="s-num">3</div><div class="s-txt">Click <strong>Commit changes</strong> — your site goes live in 30–60 seconds</div></li>
+    </ol>
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="setupTo(1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <button class="btn-primary" onclick="setupTo(3)">Next — Save your URL <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+    </div>
+  </div>
+
+  <div class="wiz-card" id="setupS3" style="display:none">
+    <div class="step-head"><div class="step-num">3</div><div>
+      <div class="step-title">Save your base URL</div>
+      <div class="step-hint">This pre-fills all wizards so you never have to type it again.</div>
+    </div></div>
+    <div class="field">
+      <label>Your GitHub Pages base URL</label>
+      <input type="url" id="setup-base" placeholder="https://client-hosting.github.io/albert-s-leung">
+      <div style="margin-top:8px;font-size:12px;font-weight:300;color:var(--muted);line-height:1.65">Format: <code style="color:var(--autumn);font-family:'Courier New';font-size:11px">https://YOUR-USERNAME.github.io/albert-s-leung</code><br>Find it in GitHub → Settings → Pages after uploading.</div>
+    </div>
+    <div class="wiz-nav">
+      <button class="btn-ghost" onclick="setupTo(2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,18 9,12 15,6"/></svg> Back</button>
+      <button class="btn-primary" onclick="saveAndContinue()">Save &amp; continue <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,18 15,12 9,6"/></svg></button>
+    </div>
+  </div>
+
+  <div class="wiz-card" id="setupS4" style="display:none">
+    <div class="success">
+      <div class="suc-icon">🎉</div>
+      <div class="suc-title">You're all set up!</div>
+      <div class="suc-desc">Your base URL is saved and pre-fills all wizards automatically. Albert's legacy is ready to go live.</div>
+      <div class="suc-btns">
+        <button class="btn-primary" onclick="switchTabById('add')">＋ Add your first clip</button>
+        <button class="btn-secondary" onclick="switchTabById('qr')">Create a QR code</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /shell -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────
+const S = {
+  baseUrl:   localStorage.getItem('asl_base') || 'https://client-hosting.github.io/albert-s-leung',
+  clipType:  'audio',
+  imgBlob:   null,
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (S.baseUrl) fillBase(S.baseUrl);
+  pbUpdate();
+  qrBuild();
+});
+
+function fillBase(url) {
+  ['q-base','p-base','setup-base'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = url;
+  });
+}
+
+// ── TABS ──────────────────────────────────────────────────────
+const TABS = {
+  add:   {title:'Add a Clip',        sub:'Step-by-step — about 3 minutes per clip'},
+  qr:    {title:'Create a QR Code',  sub:'Branded print-ready QR codes in 3 steps'},
+  pb:    {title:'Get a Play Button', sub:'The pulsing play button for your digital edition'},
+  reg:   {title:'Clip Registry',     sub:'All clips currently registered in the player'},
+  setup: {title:'Setup Guide',       sub:'One-time setup — get your player live on GitHub'},
+};
+function switchTab(el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const id = el.dataset.tab;
+  document.getElementById('tab-'+id).classList.add('active');
+  document.getElementById('tabTitle').textContent = TABS[id]?.title || '';
+  document.getElementById('tabSub').textContent   = TABS[id]?.sub   || '';
+  if (S.baseUrl) fillBase(S.baseUrl);
+}
+function switchTabById(id) { switchTab(document.querySelector(`[data-tab=${id}]`)); }
+
+// ── WIZARD NAV ────────────────────────────────────────────────
+function wiz(prefix, total, step, cb) {
+  for (let i=1; i<=total; i++) {
+    const c = document.getElementById(prefix+'S'+i);
+    if (c) c.style.display = i===step ? 'block' : 'none';
+  }
+  const prog = document.getElementById(prefix+'Prog');
+  if (prog) prog.querySelectorAll('.wiz-node').forEach((n,i) => {
+    n.classList.remove('active','done');
+    if (i+1 < step) n.classList.add('done');
+    if (i+1 === step) n.classList.add('active');
+  });
+  if (cb) cb();
+}
+function addTo(s)   { wiz('add',  6, s, s===6 ? buildReview : null); }
+function qrTo(s)    { wiz('qr',   3, s, ()=>{ if(s>=2) genQR(); if(s===3) genQRFinal(); }); }
+function pbTo(s)    { wiz('pb',   3, s, pbUpdate); }
+function setupTo(s) { wiz('setup',4, s); }
+
+// ── ADD CLIP ──────────────────────────────────────────────────
+function setType(t, el) {
+  S.clipType = t;
+  document.querySelectorAll('.type-card').forEach(c => c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+function autoSlug() {
+  const v = document.getElementById('a-title').value;
+  const slug = v.toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+  document.getElementById('a-id').value = slug;
+  const sf = document.getElementById('suggestFilename');
+  if (sf) sf.textContent = slug + (S.clipType==='video'?'.mp4':'.mp3');
+  buildSrcUrl();
+}
+
+function buildSrcUrl() {
+  const base = S.baseUrl.replace(/\/$/,'');
+  const fname = document.getElementById('a-filename')?.value.trim() || '';
+  const src = document.getElementById('a-src');
+  if (src && fname && base) src.value = `${base}/clips/${fname}`;
+  // Update test link
+  const slug = document.getElementById('a-id')?.value.trim() || '';
+  const tl = document.getElementById('testLink');
+  if (tl && slug && base) tl.textContent = `${base}/player.html?clip=${slug}`;
+}
+
+function testSrc() {
+  const url = document.getElementById('a-src')?.value.trim();
+  if (url) window.open(url, '_blank');
+  else showToast('Enter a URL first');
+}
+
+function testThumb() {
+  const url = document.getElementById('a-thumb')?.value.trim();
+  if (url) window.open(url, '_blank');
+  else showToast('Enter an image URL first');
+}
+
+function dov(e,el){ e.preventDefault(); el.classList.add('over'); }
+function dol(el){ el.classList.remove('over'); }
+function doDrop(e,type){ e.preventDefault(); e.currentTarget.classList.remove('over'); const f=e.dataTransfer.files[0]; if(f) type==='img' ? procImg(f) : null; }
+function onImgFile(inp){ if(inp.files[0]) procImg(inp.files[0]); }
+
+function procImg(f) {
+  const r = new FileReader();
+  r.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const TW=1200, TH=900;
+      const ratio = Math.min(TW/img.width, TH/img.height, 1);
+      const w=Math.round(img.width*ratio), h=Math.round(img.height*ratio);
+      const cv = document.getElementById('resizeCanvas');
+      cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      document.getElementById('imgThumb').src = cv.toDataURL('image/jpeg',.88);
+      document.getElementById('imgWrap').classList.add('show');
+      document.getElementById('imgInfo').textContent = `Web-ready: ${w} × ${h} px`;
+      document.getElementById('imgReady').style.display = 'block';
+      cv.toBlob(b => { S.imgBlob=b; }, 'image/jpeg', .88);
+      // Suggest thumb URL
+      const base=S.baseUrl.replace(/\/$/,'');
+      const slug=document.getElementById('a-id')?.value.trim()||'artwork';
+      const ti=document.getElementById('a-thumb');
+      if(ti&&!ti.value) ti.value=`${base}/images/${slug}.jpg`;
+    };
+    img.src = e.target.result;
+  };
+  r.readAsDataURL(f);
+}
+
+function dlWebImg() {
+  if(!S.imgBlob){showToast('Drop an image first');return;}
+  const slug=document.getElementById('a-id')?.value.trim()||'artwork';
+  const a=document.createElement('a'); a.href=URL.createObjectURL(S.imgBlob); a.download=slug+'.jpg'; a.click();
+  showToast('Web-ready image downloaded');
+}
+
+async function aiSuggest() {
+  const title  = document.getElementById('a-title').value.trim() || 'this artwork';
+  const medium = document.getElementById('a-medium').value.trim() || '';
+  const btn    = document.getElementById('btnSuggest');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Writing…';
+  const box=document.getElementById('aiBox'), txt=document.getElementById('aiTxt');
+  box.classList.add('show');
+  txt.innerHTML = '<div class="ai-spin"><span class="spin"></span> Crafting a description in the voice of the book…</div>';
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-20250514", max_tokens:1000,
+        messages:[{role:"user",content:`You are writing a short description for the Albert S. Leung art book audio player.
+The clip is titled: "${title}"${medium ? `, medium: "${medium}"` : ''}.
+This is a ${S.clipType} clip of Albert S. Leung — a 93-year-old Canadian wildlife artist originally from Hong Kong — speaking about this subject.
+Write a warm, elegant 2–3 sentence description in the voice of a prestige art publication. Literary but accessible. Personal but not sentimental.
+Tell the listener what they are about to hear Albert speak about. Write in third person. Do not start with "In this clip".
+Return only the description text, nothing else.`}]
+      })
+    });
+    if (!res.ok) throw new Error('API error '+res.status);
+    const d = await res.json();
+    const t = d.content?.[0]?.text?.trim()||'';
+    if (t) {
+      txt.className='ai-txt'; txt.textContent=t;
+      const ctx=document.getElementById('a-context');
+      if(!ctx.value.trim()) ctx.value=t;
+    } else throw new Error('No text');
+  } catch(e) {
+    txt.className='ai-txt';
+    txt.style.color='rgba(240,236,228,.55)';
+    txt.textContent='Could not generate a suggestion — please write the description manually below.';
+  }
+  btn.disabled=false;
+  btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Suggest again';
+}
+
+function buildReview() {
+  const id    = document.getElementById('a-id').value.trim();
+  const title = document.getElementById('a-title').value.trim();
+  const med   = document.getElementById('a-medium').value.trim();
+  const ctx   = document.getElementById('a-context').value.trim();
+  const src   = document.getElementById('a-src')?.value.trim()||'';
+  const thumb = document.getElementById('a-thumb')?.value.trim()||'';
+  const base  = S.baseUrl.replace(/\/$/,'');
+  document.getElementById('reviewCode').textContent =
+    `  "${id||'my-clip'}": {\n    title:   "${title}",\n    medium:  "${med}",\n    context: "${ctx.replace(/"/g,'\\"')}",\n    type:    "${S.clipType}",\n    src:     "${src}",\n    thumb:   "${thumb}",\n  },`;
+  const tl = document.getElementById('testLink');
+  if (tl && id && base) tl.textContent = `${base}/player.html?clip=${id}`;
+}
+
+function copyReview() {
+  navigator.clipboard.writeText(document.getElementById('reviewCode').textContent)
+    .then(()=>showToast('Code copied! Now paste it into player.html on GitHub'));
+}
+
+function addAnother() {
+  ['a-title','a-medium','a-id','a-src','a-thumb','a-context','a-filename'].forEach(id=>{
+    const e=document.getElementById(id); if(e) e.value='';
+  });
+  document.getElementById('imgWrap').classList.remove('show');
+  document.getElementById('imgReady').style.display='none';
+  document.getElementById('aiBox').classList.remove('show');
+  S.imgBlob=null;
+  addTo(1);
+}
+
+// ── QR ────────────────────────────────────────────────────────
+function qrBuild() {
+  const clip=(document.getElementById('q-id')?.value.trim()||'');
+  const base=((document.getElementById('q-base')?.value.trim()||S.baseUrl||'').replace(/\/$/,''));
+  const url = clip&&base ? `${base}/player.html?clip=${clip}` : '';
+  const d=document.getElementById('q-url');
+  if(d) d.value=url||'Enter Clip ID and Base URL above';
+}
+function qrColor(){return{autumn:'#E36519',gold:'#C5A958',dark:'#191919',cream:'#FAF6EE'}[document.getElementById('q-col')?.value||'autumn'];}
+function mkQR(outId,capId) {
+  const clip=(document.getElementById('q-id')?.value.trim()||'');
+  const base=((document.getElementById('q-base')?.value.trim()||S.baseUrl||'').replace(/\/$/,''));
+  const sz=parseInt(document.getElementById('q-sz')?.value||'280');
+  if(!clip||!base){document.getElementById(outId).innerHTML='<div class="qr-ph">Enter a Clip ID in Step 1</div>';return;}
+  const url=`${base}/player.html?clip=${clip}`;
+  const out=document.getElementById(outId); out.innerHTML='';
+  new QRCode(out,{text:url,width:sz,height:sz,colorDark:qrColor(),colorLight:'#00000000',correctLevel:QRCode.CorrectLevel.H});
+  const cap=document.getElementById(capId); if(cap) cap.textContent=`${clip} · Transparent background · Print-ready`;
+}
+function genQR(){mkQR('qr-prev','qr-cap');}
+function genQRFinal(){mkQR('qr-final','qr-fcap');}
+function dlQR(){
+  const clip=(document.getElementById('q-id')?.value.trim()||'clip');
+  const canvas=['qr-final','qr-prev'].map(id=>document.getElementById(id)?.querySelector('canvas')).find(Boolean);
+  if(!canvas){showToast('Generate a QR code first');return;}
+  const a=document.createElement('a'); a.download=`qr-${clip}.png`; a.href=canvas.toDataURL('image/png'); a.click();
+  showToast(`qr-${clip}.png downloaded`);
+}
+
+// ── PLAY BUTTON ───────────────────────────────────────────────
+function pbUrl(){
+  const clip=(document.getElementById('p-id')?.value.trim()||'intro');
+  const base=((document.getElementById('p-base')?.value.trim()||S.baseUrl||'').replace(/\/$/,''));
+  return base ? `${base}/player.html?clip=${clip}` : `player.html?clip=${clip}`;
+}
+function pbOpen(){window.open(pbUrl(),'_blank');}
+function pbUpdate(){
+  const title=(document.getElementById('p-title')?.value.trim()||'Still Life II');
+  const url=pbUrl();
+  ['p-dark-t','p-light-t'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=title;});
+  const ref=document.getElementById('p-url-ref'); if(ref) ref.textContent=url;
+  const darkCode=`<!-- Play button — dark page -->
+<div style="display:inline-flex;align-items:center;gap:16px;cursor:pointer" onclick="window.open('${url}','_blank')">
+  <div style="position:relative;width:68px;height:68px;flex-shrink:0">
+    <div style="position:absolute;inset:-8px;border-radius:50%;border:1.8px solid rgba(227,101,25,.55);animation:pls 2.4s cubic-bezier(.4,0,.6,1) infinite"></div>
+    <div style="position:absolute;inset:-18px;border-radius:50%;border:1.5px solid rgba(227,101,25,.28);animation:pls 2.4s cubic-bezier(.4,0,.6,1) infinite;animation-delay:.85s"></div>
+    <div style="position:absolute;inset:0;background:#E36519;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 24px rgba(227,101,25,.45)">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff" style="margin-left:3px"><polygon points="5,3 19,12 5,21"/></svg>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#C5A958;font-family:Effra,Georgia,serif">Hear Albert speak</div>
+    <div style="font-size:16px;font-weight:300;color:#FAF6EE;margin-top:3px;font-family:Effra,Georgia,serif">${title}</div>
+  </div>
+</div>
+<style>@keyframes pls{0%{opacity:1;transform:scale(1)}65%{opacity:0;transform:scale(1.55)}100%{opacity:0;transform:scale(1.55)}}</style>`;
+
+  const lightCode=`<!-- Play button — cream/light page -->
+<div style="display:inline-flex;align-items:center;gap:16px;cursor:pointer" onclick="window.open('${url}','_blank')">
+  <div style="position:relative;width:68px;height:68px;flex-shrink:0">
+    <div style="position:absolute;inset:-8px;border-radius:50%;border:1.8px solid rgba(227,101,25,.5);animation:pls 2.4s cubic-bezier(.4,0,.6,1) infinite"></div>
+    <div style="position:absolute;inset:-18px;border-radius:50%;border:1.5px solid rgba(227,101,25,.25);animation:pls 2.4s cubic-bezier(.4,0,.6,1) infinite;animation-delay:.85s"></div>
+    <div style="position:absolute;inset:0;background:#E36519;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 24px rgba(227,101,25,.45)">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff" style="margin-left:3px"><polygon points="5,3 19,12 5,21"/></svg>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#C5A958;font-family:Effra,Georgia,serif">Hear Albert speak</div>
+    <div style="font-size:16px;font-weight:300;color:#191919;margin-top:3px;font-family:Effra,Georgia,serif">${title}</div>
+  </div>
+</div>
+<style>@keyframes pls{0%{opacity:1;transform:scale(1)}65%{opacity:0;transform:scale(1.55)}100%{opacity:0;transform:scale(1.55)}}</style>`;
+
+  const dc=document.getElementById('p-dark-code'); if(dc) dc.textContent=darkCode;
+  const lc=document.getElementById('p-light-code'); if(lc) lc.textContent=lightCode;
+}
+
+// ── SETUP ─────────────────────────────────────────────────────
+function saveAndContinue(){
+  const val=(document.getElementById('setup-base')?.value||'').trim().replace(/\/$/,'');
+  S.baseUrl=val; localStorage.setItem('asl_base',val);
+  fillBase(val); setupTo(4); showToast('Base URL saved — all wizards pre-filled ✓');
+}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function copyEl(id){ navigator.clipboard.writeText(document.getElementById(id)?.textContent||'').then(()=>showToast('Copied!')); }
+function showToast(msg,dur=3000){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),dur);
+}
+document.querySelectorAll('.drop-zone').forEach(z=>{
+  z.addEventListener('dragover',e=>{e.preventDefault();z.classList.add('over');});
+  z.addEventListener('dragleave',()=>z.classList.remove('over'));
+  z.addEventListener('drop',()=>z.classList.remove('over'));
+});
+</script>
+</body>
+</html>
